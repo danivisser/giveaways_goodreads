@@ -5,6 +5,11 @@ library(tidyverse)
 reviews_thesis_notext <- fread("../../../Data/Giveaways/reviews_thesis_notext.csv")
 reviews_thesis_text <- fread("../../../Data/Giveaways/reviews_thesis_text.csv")
 
+
+# Filter out text reviews without text
+reviews_thesis_text <- reviews_thesis_text %>% 
+  filter(!is.na(text) & text != "")
+
 # Merge datasets
 reviews_thesis <- reviews_thesis_notext %>% 
   left_join(
@@ -18,5 +23,7 @@ reviews_thesis %>%
   filter(n() > 1) %>% 
   ungroup()
 
+reviews_thesis <- reviews_thesis %>% 
+  select(-order_filter, -rating_filter, -review_id, -reviewer_name)
 ## Export data
 write_csv(reviews_thesis, "../../../Data/Giveaways/cleaned/reviews_thesis.csv")
