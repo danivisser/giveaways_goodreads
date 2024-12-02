@@ -10,7 +10,7 @@ library(data.table)
 gunzip("../../Data/Giveaways/similar_rev_thesis.gz", remove = FALSE)
 
 ## Read data in R
-similar_reviews <- fread("../../../Data/Giveaways/similar_rev_thesis")
+similar_reviews <- fread("../../Data/Giveaways/similar_rev_thesis")
 
 ## Export working files
 fwrite(similar_reviews, file = "../../../Data/Giveaways/cleaned/similar_reviews.csv")

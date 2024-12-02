@@ -2,9 +2,9 @@
 library(tidyverse)
 
 # Load data
-reviews_thesis_notext <- fread("../../../Data/Giveaways/reviews_thesis_notext.csv")
-reviews_thesis_text <- fread("../../../Data/Giveaways/reviews_thesis_text.csv")
-
+reviews_thesis_notext <- fread("../../Data/Giveaways/reviews_thesis_notext.csv")
+reviews_thesis_text <- fread("../../Data/Giveaways/reviews_thesis_text.csv")
+reviews_thesis <- fread("../../../Data/Giveaways/cleaned/reviews_thesis.csv")
 
 # Filter out text reviews without text
 reviews_thesis_text <- reviews_thesis_text %>% 
@@ -26,4 +26,6 @@ reviews_thesis %>%
 reviews_thesis <- reviews_thesis %>% 
   select(-order_filter, -rating_filter, -review_id, -reviewer_name)
 ## Export data
-write_csv(reviews_thesis, "../../../Data/Giveaways/cleaned/reviews_thesis.csv")
+write_csv(reviews_thesis, "../../Data/Giveaways/cleaned/reviews_thesis.csv")
+
+summary(reviews_thesis)

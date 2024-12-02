@@ -9,10 +9,16 @@ similar_reviews <- fread("../../../Data/Giveaways/similar_rev_thesis")
 
 # Keep necessary rows
 similar_reviews <- similar_reviews %>% 
-  select(similar_book_id, new_review_id, ratings, time, text)
+  mutate(treatment = 0) %>% 
+  rename(book_id = similar_book_id) %>% 
+  select(book_id, new_review_id, ratings, time, text, treatment)
 
+reviews$treatment <- 1
+
+similar_review_dates <- similar_review_dates %>% 
+  rename(book_id = similar_book_id)
 # Join review data with review information
-similar_review_dates <- inner_join(similar_review_dates, similar_reviews, by = "similar_book_id")
+similar_review_dates <- inner_join(similar_review_dates, similar_reviews, by = "book_id")
 review_dates <- inner_join(review_dates, reviews, by = "book_id")
 
 # Set review date correctly
@@ -21,6 +27,14 @@ similar_review_dates <- similar_review_dates %>%
 
 review_dates <- review_dates %>% 
   mutate(time = mdy(time))
+
+# Combine reviews
+reviews <- rbind(review_dates, similar_review_dates)
+
+reviews <- reviews %>% 
+  filter(!is.na(text) & text != "")
+
+write.csv(reviews, "../../../Data/Giveaways/cleaned/all_reviews.csv")
 
 # Set POST and delete other reviews
 similar_review_dates <- similar_review_dates %>% 
@@ -36,4 +50,4 @@ review_dates <- review_dates %>%
 similar_reviews_dates_test <- similar_review_dates %>% 
   filter(!is.na(text))
 
-
+did_complete

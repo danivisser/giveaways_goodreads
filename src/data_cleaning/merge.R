@@ -58,24 +58,63 @@ similar_books <- left_join(similar_books, POST_data, by = "book_id")
 
 # Export to do calculations on review datasets, to add in the next steps
 ## For giveaway books
-write_csv(POST_data, "../../../Data/Giveaways/preparation/review_dates.csv")
+write_csv(POST_data, "../../Data/Giveaways/preparation/review_dates.csv")
 
 similar_periods <- similar_books %>% 
   select(similar_book_id, pre_period_start, pre_period_end, post_period_start, post_period_end)
 
-write_csv(similar_periods, "../../../Data/Giveaways/preparation/review_dates_similar.csv")
+write_csv(similar_periods, "../../Data/Giveaways/preparation/review_dates_similar.csv")
 # Add review calculations for reviews (quantity, quality calculations) for both similar and normal reviews before merging those datasets
+similar_books <- similar_books %>% 
+  #select(-book_id) %>% 
+ # rename(book_id = similar_book_id) %>% 
+  rename(format.y = bookFormat)
 
+similar_books <- similar_books %>% 
+  select(-book_publication_date)
 
+giveaway_genre_books <- giveaway_genre_books %>% 
+  rename(publication_date = book_publication_date) %>% 
+  select(book_id, format.y, publication_year, publication_month, publication_day, publication_date, shelf, num_pages)
 
+giveaway_information <- rbind(giveaway_genre_books, similar_books)
 
+# Giveaway and non- giveaway books without review information
+write.csv(giveaway_information, "../../../Data/Giveaways/cleaned/giveaway_information.csv")
 
+did_complete <- left_join(reviews_2, giveaway_information, by = "book_id")
 
-
-
-
-
-
+write.csv(did_complete, "../../../Data/Giveaways/cleaned/did_complete.csv")
 
 write_csv(filtered_reviews, "../../../Data/Giveaways/preparation/filtered_reviews.csv")
 write_csv(giveaway_genre_books_reviews, "../../../Data/Giveaways/cleaned/before-after.csv")
+
+review_summary <- did_complete %>% 
+  group_by(treatment, POST) %>% 
+  summarize(
+    total_reviews = n(),
+    avg_reviews = total_reviews / n_distinct(book_id),
+    sd_reviews = sd(table(book_id))
+  )
+
+review_summary <- did_complete %>% 
+  group_by(treatment, POST) %>% 
+  summarize(
+    unique_books = n_distinct(book_id)
+  )
+print(review_summary)
+
+review_summary <- did_complete %>% 
+  filter(FOG != Inf) %>% 
+  group_by(treatment, POST) %>% 
+  summarize(
+    avg_length = mean(word_count, na.rm = TRUE),
+    sd_review = sd(word_count, na.rm = TRUE),
+    number_length = sum(!is.na(word_count)),
+    Gf_index = mean(FOG, na.rm = TRUE),
+    sd_gf = sd(FOG, na.rm = TRUE),
+    N_gf = sum(!is.na(FOG))
+  )
+
+
+

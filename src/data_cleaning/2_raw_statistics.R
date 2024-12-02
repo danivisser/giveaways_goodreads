@@ -4,9 +4,9 @@ library(lubridate)
 library(data.table)
 
 # Load data
-reviews_thesis <- fread("../../../Data/Giveaways/cleaned/reviews_thesis.csv")
-giveaways_thesis <- fread("../../../Data/Giveaways/giveaways_thesis.csv")
-book_df <- fread("../../../Data/Giveaways/book_df_cleanPublisher.csv")
+reviews_thesis <- fread("../../Data/Giveaways/cleaned/reviews_thesis.csv")
+giveaways_thesis <- fread("../../Data/Giveaways/giveaways_thesis.csv")
+book_df <- fread("../../Data/Giveaways/book_df_cleanPublisher.csv")
 
 
 # Set dates correctly
@@ -31,7 +31,7 @@ giveaways_thesis <- giveaways_thesis %>%
   ungroup() %>% 
   select(-book_title)
 
-write_csv(giveaways_thesis, "../../../Data/Giveaways/cleaned/giveaways_thesis.csv")
+write_csv(giveaways_thesis, "../../Data/Giveaways/cleaned/giveaways_thesis.csv")
 
 
 # Reviews thesis
@@ -42,19 +42,39 @@ reviews_thesis %>%
   ungroup()
 
 reviews_thesis_time <- reviews_thesis %>% 
-  select(-order_filter, -review_id, -reviewer_name, -rating_filter) %>% 
   mutate(time = mdy(time))
 
 reviews_thesis_time_v2 <- reviews_thesis_time %>% 
   group_by(time) %>% 
   filter(year(time) > 2006)
 
-reviews_per_month <- reviews_thesis_time_v2 %>%
+did_complete_inf_date <- inner_join(giveaways_thesis$giveaway_start_date, did_complete_inf, by = "book_id")
+
+reviews_per_month <- before_after_analysis %>%
+  mutate(relative_time = as.numeric(difftime(time, pre_period_end, units = "days"))/30) %>%
+  mutate(relative_time = round(relative_time))
+  group_by(month, POST) %>%
+  summarise(num_reviews = n())
+
+reviews_relative <- reviews_per_month %>% 
+  group_by(relative_time, POST) %>% 
+  summarise(num_reviews = n(), .groups="drop") %>% 
+  filter(relative_time <= 6 & relative_time >= -5)
+  
+ggplot(reviews_relative, aes(x = relative_time, y = num_reviews, color = factor(POST))) +
+  geom_line(size = 1) +
+  labs(title = "Number of Reviews Per Month",
+       x = "Month",
+       y = "Number of Reviews",
+       color = "Time") +
+  theme_minimal()
+
+reviews_per_month <- did_complete %>%
   mutate(month = floor_date(time, "month")) %>%
   group_by(month) %>%
   summarise(num_reviews = n())
 
-ggplot(reviews_per_month, aes(x = month, y = log(num_reviews))) +
+ggplot(reviews_per_month, aes(x = month, y = num_reviews)) +
   geom_line() +
   labs(title = "Number of Reviews Per Month",
        x = "Month",
@@ -84,5 +104,5 @@ book_df_duplicate <- book_df %>%
 
 summary(book_df_duplicate)
 
-write_csv(book_df_duplicate, "../../../Data/Giveaways/cleaned/book_df.csv")
+write_csv(book_df_duplicate, "../../Data/Giveaways/cleaned/book_df.csv")
 

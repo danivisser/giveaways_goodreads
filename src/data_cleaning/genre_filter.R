@@ -22,4 +22,4 @@ book_genre <- book_genre %>%
   ungroup()
 
 ## Export data
-write_csv(book_genre, "../../../Data/Giveaways/cleaned/book_genre_filtered.csv")
+write_csv(book_genre, "../../Data/Giveaways/cleaned/book_genre_filtered.csv")
