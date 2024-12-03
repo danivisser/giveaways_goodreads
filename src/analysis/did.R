@@ -2,16 +2,23 @@ library(fixest)
 library(panelr)
 library(tidyverse)
 library(data.table)
-
+library(lubridate)
+library(tidyr)
+library(zoo)
+library(ggplot2)
+library(did)
 
 did_complete <- fread("../../../Data/Giveaways/cleaned/all_reviews_fog_coherence.csv")
 
 did_complete <- did_complete %>% 
-  select(-1, -2)
+  select(-1, -2, -new_review_id, -text)
 
 did_complete$year_month <- floor_date(did_complete$time, unit = "month")
 
 did_complete <- did_complete[year(year_month) >= 2007]
+
+did_complete <- did_complete %>% 
+  select(-time)
 
 min_date <- min(did_complete$year_month)
 max_date <- max(did_complete$year_month)
@@ -20,35 +27,60 @@ date_range <- seq(min_date, max_date, by = "month")
 date_df <- data.frame(date = date_range)
 date_df$period <- seq_len(nrow(date_df))
 
-did_complete$giveaway_start_ym<- as.Date(as.yearmon(did_complete$pre_period_end))
-did_complete$giveaway_end_ym<- as.Date(as.yearmon(did_complete$post_period_start))
+did_complete$date_giveaway<- as.Date(as.yearmon(did_complete$pre_period_end))
+#did_complete$giveaway_end_ym<- as.Date(as.yearmon(did_complete$post_period_start))
 
-merged_df <- merge(did, date_df, by.x = "year_month", by.y = "date", all.x = TRUE)
+did_complete <- merge(did_complete, date_df, by.x = "year_month", by.y = "date", all.x = TRUE)
+did_complete <- merge(did_complete, date_df, by.x = "date_giveaway", by.y = "date", all.x = TRUE)
 
-merged_df <- merge(merged_df, date_df, by.x = "giveaway_start_ym", by.y = "date", all.x = TRUE)
+names(did_complete)[names(did_complete) == "period.x"] <- "period_review"
+names(did_complete)[names(did_complete) == "period.y"] <- "period_giveaway"
 
-names(merged_df)[names(merged_df) == "period.x"] <- "period_review"
-names(merged_df)[names(merged_df) == "period.y"] <- "period_giveaway"
+did_complete$period_review<- as.numeric(did_complete$period_review)
+did_complete$book_id<- as.numeric(as.factor(did_complete$book_id))
 
-merged_df$treat <- ifelse(merged_df$period_review >= merged_df$period_giveaway, 1, 0)
+did_complete <- did_complete %>% 
+  mutate(period_giveaway = ifelse(treatment == 0, 1000, period_giveaway))
 
-merged_df$period_review<- as.numeric(merged_df$period_review)
-merged_df$book_id<- as.numeric(as.factor(merged_df$book_id))
+did_complete <- did_complete %>% 
+  mutate(relative_time = case_when(
+    treatment == 1 ~ period_review - period_giveaway,
+    TRUE ~ NA_real_
+  )) 
 
-staggered_notyettreated <- att_gt(yname = "ratings",
-                                  tname = "period_review",
-                                  idname = "book_id",
-                                  gname = "period_giveaway",
-                                  control_group = "notyettreated",
-                                  data = merged_df,
-                                  allow_unbalanced_panel = TRUE
-)
+obs_by_time <- did_complete %>% 
+  group_by(relative_time) %>% 
+  summarise(num_obs = n())
 
-staggered_notyettreated_aggregate<- aggte(staggered_notyettreated, type = "dynamic", na.rm = TRUE)
+ggplot(obs_by_time, aes(x = relative_time, y = num_obs)) + 
+  geom_bar(stat = "identity") + 
+  theme_minimal()
 
-staggered_notyettreated_plot<- ggdid(staggered_notyettreated_aggregate)+ labs(x = "Time Relative to Q&A Adoption (in 30-day bins)", y = "ATT")
-print(staggered_notyettreated_plot)
+did_pre_post <- did_complete %>% 
+  filter(
+    (relative_time >= -10 & relative_time <= 50 & treatment == 1) | (treatment == 0),
+    FOG <= 20)
 
+did_pre_post <- did_pre_post %>% 
+  select(-date_giveaway, -pre_period_start, -pre_period_end, -post_period_start, -post_period_end)
+
+write.csv(did_pre_post, "../../../Data/Giveaways/cleaned/did_pre_post.csv")
+
+obs_by_time <- did_pre_post %>% 
+  group_by(relative_time) %>% 
+  summarise(num_obs = n())
+
+ggplot(obs_by_time, aes(x = relative_time, y = num_obs)) + 
+  geom_bar(stat = "identity") + 
+  theme_minimal()
+
+res_sa20 = feols(FOG ~ sunab(period_giveaway, period_review) | book_id, cluster = "book_id", nthreads = 1, lean = TRUE, did_pre_post)
+  
+iplot(res_sa20)
+
+summary(res_sa20, agg = "att")
+
+table(merged_df$period_giveaway)
 
 did_complete <- did_complete %>% 
   mutate(year_month = paste(publication_year, publication_month, sep="-"))
