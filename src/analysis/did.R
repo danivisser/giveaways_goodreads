@@ -2,15 +2,53 @@ library(fixest)
 library(panelr)
 library(tidyverse)
 library(data.table)
-library(jsonlite)
 
-lines <- readLines("../../../Data/Giveaways/cleaned/coherence_scores.json")
-json_data <- lapply(lines, fromJSON)
-json_df <- do.call(rbind.data.frame, json_data)
-reviews_test <- inner_join(reviews, json_df, by = "new_review_id")
-write.csv(reviews_test, "../../../Data/Giveaways/cleaned/all_reviews_fog_coherence.csv")
 
 did_complete <- fread("../../../Data/Giveaways/cleaned/all_reviews_fog_coherence.csv")
+
+did_complete <- did_complete %>% 
+  select(-1, -2)
+
+did_complete$year_month <- floor_date(did_complete$time, unit = "month")
+
+did_complete <- did_complete[year(year_month) >= 2007]
+
+min_date <- min(did_complete$year_month)
+max_date <- max(did_complete$year_month)
+
+date_range <- seq(min_date, max_date, by = "month")
+date_df <- data.frame(date = date_range)
+date_df$period <- seq_len(nrow(date_df))
+
+did_complete$giveaway_start_ym<- as.Date(as.yearmon(did_complete$pre_period_end))
+did_complete$giveaway_end_ym<- as.Date(as.yearmon(did_complete$post_period_start))
+
+merged_df <- merge(did, date_df, by.x = "year_month", by.y = "date", all.x = TRUE)
+
+merged_df <- merge(merged_df, date_df, by.x = "giveaway_start_ym", by.y = "date", all.x = TRUE)
+
+names(merged_df)[names(merged_df) == "period.x"] <- "period_review"
+names(merged_df)[names(merged_df) == "period.y"] <- "period_giveaway"
+
+merged_df$treat <- ifelse(merged_df$period_review >= merged_df$period_giveaway, 1, 0)
+
+merged_df$period_review<- as.numeric(merged_df$period_review)
+merged_df$book_id<- as.numeric(as.factor(merged_df$book_id))
+
+staggered_notyettreated <- att_gt(yname = "ratings",
+                                  tname = "period_review",
+                                  idname = "book_id",
+                                  gname = "period_giveaway",
+                                  control_group = "notyettreated",
+                                  data = merged_df,
+                                  allow_unbalanced_panel = TRUE
+)
+
+staggered_notyettreated_aggregate<- aggte(staggered_notyettreated, type = "dynamic", na.rm = TRUE)
+
+staggered_notyettreated_plot<- ggdid(staggered_notyettreated_aggregate)+ labs(x = "Time Relative to Q&A Adoption (in 30-day bins)", y = "ATT")
+print(staggered_notyettreated_plot)
+
 
 did_complete <- did_complete %>% 
   mutate(year_month = paste(publication_year, publication_month, sep="-"))
