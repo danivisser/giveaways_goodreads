@@ -65,6 +65,7 @@ did_pre_post <- did_pre_post %>%
   select(-date_giveaway, -pre_period_start, -pre_period_end, -post_period_start, -post_period_end)
 
 write.csv(did_pre_post, "../../../Data/Giveaways/cleaned/did_pre_post.csv")
+did_pre_post <- fread("../../../Data/Giveaways/cleaned/did_pre_post.csv")
 
 obs_by_time <- did_pre_post %>% 
   group_by(relative_time) %>% 
@@ -74,11 +75,16 @@ ggplot(obs_by_time, aes(x = relative_time, y = num_obs)) +
   geom_bar(stat = "identity") + 
   theme_minimal()
 
-res_sa20 = feols(FOG ~ sunab(period_giveaway, period_review) | book_id, cluster = "book_id", nthreads = 1, lean = TRUE, did_pre_post)
-  
-iplot(res_sa20)
+did_pre_post_10 <- did_pre_post %>% 
+  filter(
+    (relative_time >= -6 & relative_time <= 20 & treatment == 1) | (treatment == 0))
+    
+res_sa10 = feols(FOG ~ sunab(period_giveaway, period_review) | book_id, cluster = "book_id", did_pre_post_10)
+res_sa_20 = feols(FOG ~ sunab(period_giveaway, period_review) | book_id, cluster = "book_id", lean = TRUE, did_pre_post_20)
 
-summary(res_sa20, agg = "att")
+iplot(res_sa10)
+
+summary(res_sa10, agg = "att")
 
 table(merged_df$period_giveaway)
 
